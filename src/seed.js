@@ -35,12 +35,12 @@ const seedData = async () => {
     console.log('Users seeded');
 
     // Create categories
-    const categories = await Category.insertMany([
-      { name: 'Electronics', slug: 'electronics' },
-      { name: 'Clothing', slug: 'clothing' },
-      { name: 'Books', slug: 'books' },
-      { name: 'Home & Garden', slug: 'home-garden' },
-      { name: 'Sports', slug: 'sports' },
+    const categories = await Category.create([
+      { name: 'Electronics' },
+      { name: 'Clothing' },
+      { name: 'Books' },
+      { name: 'Home & Garden' },
+      { name: 'Sports' },
     ]);
 
     console.log('Categories seeded');
@@ -105,7 +105,7 @@ const seedData = async () => {
       },
     ];
 
-    await Product.insertMany(products);
+    await Product.create(products);
     console.log('Products seeded');
 
     console.log('\n--- Seed Complete ---');

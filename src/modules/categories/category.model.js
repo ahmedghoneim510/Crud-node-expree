@@ -23,17 +23,15 @@ const categorySchema = new mongoose.Schema(
   }
 );
 
-categorySchema.pre('save', function (next) {
+categorySchema.pre('save', function () {
   this.slug = slugify(this.name, { lower: true, strict: true });
-  next();
 });
 
-categorySchema.pre('findOneAndUpdate', function (next) {
+categorySchema.pre('findOneAndUpdate', function () {
   const update = this.getUpdate();
   if (update.name) {
     update.slug = slugify(update.name, { lower: true, strict: true });
   }
-  next();
 });
 
 module.exports = mongoose.model('Category', categorySchema);

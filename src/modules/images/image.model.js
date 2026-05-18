@@ -20,3 +20,4 @@ const imageSchema = new mongoose.Schema(
 imageSchema.index({ productId: 1 });
 
 module.exports = mongoose.model('Image', imageSchema);
+  
