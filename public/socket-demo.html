@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Socket.IO Demo - E-Commerce Real-Time</title>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', sans-serif; background: #1a1a2e; color: #eee; padding: 20px; }
+    h1 { text-align: center; margin-bottom: 20px; color: #00d4ff; }
+    .container { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .panel { background: #16213e; border-radius: 12px; padding: 20px; border: 1px solid #0f3460; }
+    .panel h2 { color: #00d4ff; margin-bottom: 15px; font-size: 1.1rem; }
+    .status { padding: 8px 16px; border-radius: 20px; display: inline-block; margin-bottom: 15px; font-size: 0.85rem; }
+    .connected { background: #00c853; color: #000; }
+    .disconnected { background: #ff1744; color: #fff; }
+    .log { background: #0a0a1a; border-radius: 8px; padding: 15px; height: 300px; overflow-y: auto; font-family: monospace; font-size: 0.85rem; }
+    .log-entry { padding: 5px 0; border-bottom: 1px solid #1a1a3e; }
+    .log-entry .time { color: #666; }
+    .log-entry .event { color: #00d4ff; font-weight: bold; }
+    .log-entry .data { color: #aaa; }
+    .chat-area { display: flex; flex-direction: column; }
+    .messages { background: #0a0a1a; border-radius: 8px; padding: 15px; height: 250px; overflow-y: auto; margin-bottom: 10px; }
+    .message { padding: 8px 12px; margin: 5px 0; border-radius: 8px; max-width: 80%; }
+    .message.sent { background: #0f3460; margin-left: auto; }
+    .message.received { background: #1a1a3e; }
+    .message .sender { font-size: 0.75rem; color: #00d4ff; }
+    .message .text { margin-top: 4px; }
+    .input-group { display: flex; gap: 10px; }
+    input, button { padding: 10px 15px; border-radius: 8px; border: 1px solid #0f3460; background: #0a0a1a; color: #eee; font-size: 0.9rem; }
+    input { flex: 1; }
+    button { background: #00d4ff; color: #000; font-weight: bold; cursor: pointer; border: none; }
+    button:hover { background: #00b8d4; }
+    .typing { font-size: 0.8rem; color: #666; padding: 5px; height: 20px; }
+    .controls { margin-bottom: 15px; }
+    .controls input { width: 100%; margin-bottom: 10px; }
+    @media (max-width: 768px) { .container { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <h1>🔌 Socket.IO Real-Time Demo</h1>
+
+  <div class="container">
+    <!-- Connection & Product Notifications Panel -->
+    <div class="panel">
+      <h2>📡 Real-Time Product Notifications</h2>
+      <div id="status" class="status disconnected">Disconnected</div>
+
+      <div class="controls">
+        <input type="text" id="tokenInput" placeholder="JWT Token (optional - for authenticated features)" />
+        <button onclick="connectSocket()">Connect</button>
+        <button onclick="disconnectSocket()">Disconnect</button>
+      </div>
+
+      <div class="controls">
+        <input type="text" id="categoryInput" placeholder="Category ID to subscribe" />
+        <button onclick="subscribeCategory()">Subscribe to Category</button>
+      </div>
+
+      <h2>📋 Event Log</h2>
+      <div class="log" id="eventLog"></div>
+    </div>
+
+    <!-- Chat Panel -->
+    <div class="panel chat-area">
+      <h2>💬 Real-Time Chat (Support)</h2>
+
+      <div class="controls">
+        <input type="text" id="roomInput" placeholder="Chat Room ID" value="general" />
+        <button onclick="joinRoom()">Join Room</button>
+        <button onclick="leaveRoom()">Leave Room</button>
+      </div>
+
+      <div class="messages" id="chatMessages"></div>
+      <div class="typing" id="typingIndicator"></div>
+
+      <div class="input-group">
+        <input type="text" id="messageInput" placeholder="Type a message..." onkeyup="handleTyping(event)" />
+        <button onclick="sendMessage()">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let socket = null;
+    let currentRoom = null;
+    let typingTimeout = null;
+
+    // ─── Connect to Socket.IO Server ─────────────────────────────────
+    function connectSocket() {
+      const token = document.getElementById('tokenInput').value;
+
+      socket = io('http://localhost:5000', {
+        auth: { token: token || undefined },
+      });
+
+      // Connection events
+      socket.on('connect', () => {
+        updateStatus(true);
+        addLog('connect', `Connected with ID: ${socket.id}`);
+      });
+
+      socket.on('disconnect', (reason) => {
+        updateStatus(false);
+        addLog('disconnect', `Disconnected: ${reason}`);
+      });
+
+      // ─── Product Events ──────────────────────────────────────────
+      socket.on('product:created', (payload) => {
+        addLog('product:created', `New product: "${payload.data.title}" - $${payload.data.price}`);
+      });
+
+      socket.on('product:updated', (payload) => {
+        addLog('product:updated', `Product updated: "${payload.data.title}"`);
+      });
+
+      socket.on('product:deleted', (payload) => {
+        addLog('product:deleted', `Product deleted: ${payload.data.id}`);
+      });
+
+      // Category-specific product notifications
+      socket.on('category:new-product', (payload) => {
+        addLog('category:new-product', `New in your category: "${payload.data.title}"`);
+      });
+
+      // Admin notifications
+      socket.on('admin:notification', (payload) => {
+        addLog('admin:notification', `🔔 ${payload.message}`);
+      });
+
+      // ─── Chat Events ─────────────────────────────────────────────
+      socket.on('chat:message', (message) => {
+        addChatMessage(message);
+      });
+
+      socket.on('chat:user-joined', (data) => {
+        addSystemMessage(`${data.name} joined the room`);
+      });
+
+      socket.on('chat:user-left', (data) => {
+        addSystemMessage(`${data.name} left the room`);
+      });
+
+      socket.on('chat:typing', (data) => {
+        const indicator = document.getElementById('typingIndicator');
+        if (data.isTyping) {
+          indicator.textContent = `${data.name} is typing...`;
+        } else {
+          indicator.textContent = '';
+        }
+      });
+    }
+
+    // ─── Disconnect ──────────────────────────────────────────────────
+    function disconnectSocket() {
+      if (socket) {
+        socket.disconnect();
+        socket = null;
+      }
+    }
+
+    // ─── Category Subscription ───────────────────────────────────────
+    function subscribeCategory() {
+      const categoryId = document.getElementById('categoryInput').value;
+      if (socket && categoryId) {
+        socket.emit('subscribe:category', categoryId);
+        addLog('subscribe', `Subscribed to category: ${categoryId}`);
+      }
+    }
+
+    // ─── Chat Functions ──────────────────────────────────────────────
+    function joinRoom() {
+      const roomId = document.getElementById('roomInput').value;
+      if (socket && roomId) {
+        currentRoom = roomId;
+        socket.emit('chat:join', roomId);
+        addSystemMessage(`You joined room: ${roomId}`);
+      }
+    }
+
+    function leaveRoom() {
+      if (socket && currentRoom) {
+        socket.emit('chat:leave', currentRoom);
+        addSystemMessage(`You left room: ${currentRoom}`);
+        currentRoom = null;
+      }
+    }
+
+    function sendMessage() {
+      const input = document.getElementById('messageInput');
+      const text = input.value.trim();
+
+      if (socket && currentRoom && text) {
+        socket.emit('chat:message', { roomId: currentRoom, text });
+        input.value = '';
+
+        // Stop typing indicator
+        socket.emit('chat:typing', { roomId: currentRoom, isTyping: false });
+      }
+    }
+
+    function handleTyping(event) {
+      if (event.key === 'Enter') {
+        sendMessage();
+        return;
+      }
+
+      if (socket && currentRoom) {
+        socket.emit('chat:typing', { roomId: currentRoom, isTyping: true });
+
+        clearTimeout(typingTimeout);
+        typingTimeout = setTimeout(() => {
+          socket.emit('chat:typing', { roomId: currentRoom, isTyping: false });
+        }, 2000);
+      }
+    }
+
+    // ─── UI Helpers ──────────────────────────────────────────────────
+    function updateStatus(connected) {
+      const el = document.getElementById('status');
+      el.textContent = connected ? 'Connected ✓' : 'Disconnected';
+      el.className = `status ${connected ? 'connected' : 'disconnected'}`;
+    }
+
+    function addLog(event, data) {
+      const log = document.getElementById('eventLog');
+      const time = new Date().toLocaleTimeString();
+      log.innerHTML += `<div class="log-entry"><span class="time">[${time}]</span> <span class="event">${event}</span> <span class="data">${data}</span></div>`;
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function addChatMessage(message) {
+      const container = document.getElementById('chatMessages');
+      const isMine = socket && message.sender.id === socket.id;
+      container.innerHTML += `
+        <div class="message ${isMine ? 'sent' : 'received'}">
+          <div class="sender">${message.sender.name}</div>
+          <div class="text">${message.text}</div>
+        </div>`;
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function addSystemMessage(text) {
+      const container = document.getElementById('chatMessages');
+      container.innerHTML += `<div style="text-align:center;color:#666;font-size:0.8rem;padding:5px;">${text}</div>`;
+      container.scrollTop = container.scrollHeight;
+    }
+  </script>
+</body>
+</html>

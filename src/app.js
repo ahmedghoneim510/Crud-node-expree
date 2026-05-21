@@ -37,6 +37,9 @@ if (config.nodeEnv === 'development') {
 // Static files (uploaded images)
 app.use('/uploads', express.static(uploadsDir));
 
+// Serve Socket.IO demo page
+app.use('/demo', express.static(path.join(process.cwd(), 'public')));
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ success: true, message: 'API is running', timestamp: new Date().toISOString() });
