@@ -3,6 +3,7 @@ const config = require('../config');
 const ApiError = require('../utils/ApiError');
 const catchAsync = require('../utils/catchAsync');
 const User = require('../modules/users/user.model');
+const userService = require('../modules/users/user.service');
 
 const authenticate = catchAsync(async (req, res, next) => {
   let token;
@@ -13,6 +14,10 @@ const authenticate = catchAsync(async (req, res, next) => {
 
   if (!token) {
     throw new ApiError(401, 'Not authorized, no token provided');
+  }
+
+  if (await userService.isTokenBlacklisted(token)) {
+    throw new ApiError(401, 'Token has been invalidated, please login again');
   }
 
   const decoded = jwt.verify(token, config.jwt.secret);
