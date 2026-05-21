@@ -1,25 +1,20 @@
+const Joi = require('joi');
 
+const createCitySchema = Joi.object({
+  name: Joi.string().trim().min(2).max(100).required()
+    .messages({
+      'string.min': 'City name must be between 2 and 100 characters',
+      'string.max': 'City name must be between 2 and 100 characters',
+      'any.required': 'City name is required',
+    }),
+});
 
-const createCity = [
-    body('name')
-        .trim()
-        .isLength({ min: 2, max: 100 })
-        .withMessage('City name must be between 2 and 100 characters')
-        .matches(/^[a-zA-Z\s]+$/)
-        .withMessage('City name can only contain letters and spaces'),
-];
+const updateCitySchema = Joi.object({
+  name: Joi.string().trim().min(2).max(100)
+    .messages({
+      'string.min': 'City name must be between 2 and 100 characters',
+      'string.max': 'City name must be between 2 and 100 characters',
+    }),
+});
 
-const updateCity = [
-    body('name')
-        .optional()
-        .trim()
-        .isLength({ min: 2, max: 100 })
-        .withMessage('City name must be between 2 and 100 characters')
-        .matches(/^[a-zA-Z\s]+$/)
-        .withMessage('City name can only contain letters and spaces'),
-];
-
-module.exports = {
-    createCity,
-    updateCity
-};
+module.exports = { createCitySchema, updateCitySchema };
